@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.setHeader("Content-Type", "text/html");
-    res.write("Error: That method is not allowed");
+    res.write(`Error: The request method ${req.method} is not allowed`);
     res.end();
     return;
   } else if (req.method === "POST") {
@@ -35,6 +35,14 @@ const server = http.createServer((req, res) => {
       // convertir cuerpo en string y parsear para sacar parámetros/valores usables
       body = Buffer.concat(body).toString();
       const requestData = querystring.parse(body);
+      //validar datos de petición
+      const { name, phone } = requestData;
+      if (!name || !phone) {
+        console.log(requestData);
+        res.statusCode = 400;
+        res.end(`Error: Request body missing some details.`);
+        return;
+      }
       //conectar a la base de datos
       client
         .connect()
@@ -45,14 +53,15 @@ const server = http.createServer((req, res) => {
           const collection = database.collection("users");
           //meter datos nuevos
           const insertRecord = await collection.insertOne(requestData);
-          console.log("Resultado de la inserción: ", insertRecord.result);
           //coger todos los usuarios en la base de datos
           const responseBody = await collection.find({}).toArray();
           client.close();
           //configurar respuesta para devolver todos los usuarios de la bbdd
-          console.log("All users: ", responseBody);
           res.statusCode = 200;
           res.setHeader("Content-Type", "text/plain");
+          res.write(
+            `${req.method} request was successful. Here are your results:\n`
+          );
           res.write(JSON.stringify(responseBody));
           //para devolver los datos de otra forma:
           //res.write(returnResultsHtml(responseBody));
@@ -60,9 +69,8 @@ const server = http.createServer((req, res) => {
         })
         //manejar posibles errores
         .catch((error) => {
-          console.log(error);
           res.statusCode = 400;
-          res.end(`{"error":"Problem connecting to database"}`);
+          res.end(`Error: Problem connecting to database. ${error}`);
           client.close();
         });
     });
